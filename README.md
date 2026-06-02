@@ -27,11 +27,11 @@ Open `http://localhost:4173`.
 
 ## R1 Runtime Hooks
 
-- Scroll wheel: `scrollUp` and `scrollDown` switch between Today, Boosts, and Log.
+- Scroll wheel: `scrollUp` and `scrollDown` switch between Today, Actions, and Log, clamped at top and bottom.
 - Side button: `longPressStart` begins voice capture; `longPressEnd` submits the transcript.
 - AI calorie estimates: `PluginMessageHandler.postMessage(... useLLM: true ...)`.
 - Responses: `window.onPluginMessage`.
-- Persistence: `window.creationStorage.plain`.
+- Persistence: `window.creationStorage.plain`, with `localStorage` and cookie fallbacks for browser/GitHub Pages testing.
 - Actions: voice food and exercise are available by scrolling down from the wheel.
 
 ## Current SDK Limitation

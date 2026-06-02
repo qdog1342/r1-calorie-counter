@@ -195,7 +195,12 @@ function renderLog() {
 }
 
 function setMode(index) {
-  state.modeIndex = (index + modes.length) % modes.length;
+  const nextIndex = clamp(index, 0, modes.length - 1);
+  if (nextIndex === state.modeIndex) {
+    setStatus(nextIndex === 0 ? "top" : "bottom");
+    return;
+  }
+  state.modeIndex = nextIndex;
   const activeMode = modes[state.modeIndex];
   document.querySelectorAll(".page").forEach((panel) => {
     panel.classList.toggle("active", panel.id === `${activeMode}Panel`);
@@ -217,28 +222,35 @@ function endVoiceCapture() {
   els.voiceButton.classList.remove("active");
   stopSpeechRecognition();
 
-  const spoken = state.transcript.trim() || els.manualInput.value.trim();
+  const spoken = state.transcript.trim();
   if (!spoken) {
-    showManualFallback("type food");
+    showManualFallback("type food then enter");
     return;
   }
   submitTranscript(spoken);
 }
 
 function submitTranscript(text) {
+  const cleanText = text.trim();
+  if (!cleanText) {
+    showManualFallback("type food then enter");
+    return;
+  }
+
   els.manualInput.classList.remove("show");
-  const fastHours = parseFastHours(text);
+  els.manualInput.value = "";
+  const fastHours = parseFastHours(cleanText);
   if (fastHours) {
     applyFastingBoost(fastHours);
     return;
   }
 
-  if (/\b(run|walk|bike|cycle|lift|weights|exercise|workout|jog)\b/i.test(text)) {
-    requestExerciseEstimate(text);
+  if (/\b(run|walk|bike|cycle|lift|weights|exercise|workout|jog)\b/i.test(cleanText)) {
+    requestExerciseEstimate(cleanText);
     return;
   }
 
-  requestFoodEstimate(text);
+  requestFoodEstimate(cleanText);
 }
 
 function startSpeechRecognition() {
@@ -562,9 +574,8 @@ function playBurst() {
 }
 
 async function loadState() {
-  if (!window.creationStorage?.plain) return;
   try {
-    const stored = await window.creationStorage.plain.getItem(STORAGE_KEY);
+    const stored = await readStoredState();
     if (!stored) return;
     const decoded = JSON.parse(atob(stored));
     Object.assign(state, decoded);
@@ -583,7 +594,6 @@ async function loadState() {
 }
 
 async function saveState() {
-  if (!window.creationStorage?.plain) return;
   const snapshot = {
     dailyBudget: state.dailyBudget,
     consumed: state.consumed,
@@ -595,8 +605,43 @@ async function saveState() {
     boosts: state.boosts
   };
   try {
-    await window.creationStorage.plain.setItem(STORAGE_KEY, btoa(JSON.stringify(snapshot)));
+    await writeStoredState(btoa(JSON.stringify(snapshot)));
   } catch (error) {
     setStatus("storage failed");
   }
+}
+
+async function readStoredState() {
+  if (window.creationStorage?.plain) {
+    return window.creationStorage.plain.getItem(STORAGE_KEY);
+  }
+  if (typeof window.localStorage !== "undefined") {
+    try {
+      return window.localStorage.getItem(STORAGE_KEY);
+    } catch (error) {
+      // Continue to cookie fallback.
+    }
+  }
+  try {
+    const match = document.cookie.match(new RegExp(`(?:^|; )${STORAGE_KEY}=([^;]*)`));
+    return match ? decodeURIComponent(match[1]) : null;
+  } catch (error) {
+    return null;
+  }
+}
+
+async function writeStoredState(encodedState) {
+  if (window.creationStorage?.plain) {
+    await window.creationStorage.plain.setItem(STORAGE_KEY, encodedState);
+    return;
+  }
+  if (typeof window.localStorage !== "undefined") {
+    try {
+      window.localStorage.setItem(STORAGE_KEY, encodedState);
+      return;
+    } catch (error) {
+      // Continue to cookie fallback.
+    }
+  }
+  document.cookie = `${STORAGE_KEY}=${encodeURIComponent(encodedState)}; max-age=31536000; path=/; SameSite=Lax`;
 }
