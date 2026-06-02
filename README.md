@@ -18,7 +18,7 @@ Open `http://localhost:4173`.
    `https://github.com/rabbit-hmi-oss/creations-sdk/tree/main/qr`
 3. Fill in:
    - Title: `r1 kcal`
-   - URL: your deployed HTTPS URL
+   - URL: `https://qdog1342.github.io/r1-calorie-counter/`
    - Description: `A gamified calorie counter for Rabbit R1`
    - Theme color: `#FE5000`
    You can also start from `qr-payload.example.json`.
