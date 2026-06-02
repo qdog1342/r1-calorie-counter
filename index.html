@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=240, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>r1 kcal</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;500;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <main id="app" tabindex="0" aria-label="r1 calorie counter creation">
+      <section class="page page-ring active" id="todayPanel" aria-live="polite">
+        <div class="topline">
+          <span>r1 kcal</span>
+          <span class="clock" id="clock">00:00</span>
+        </div>
+
+        <section class="ring-zone">
+          <svg class="calorie-ring" viewBox="0 0 232 232" role="img" aria-label="calorie wheel">
+            <circle class="ring-base" cx="116" cy="116" r="98"></circle>
+            <circle class="ring-day" id="dayArc" cx="116" cy="116" r="98"></circle>
+            <circle class="ring-available" id="availableArc" cx="116" cy="116" r="98"></circle>
+          </svg>
+          <div class="ring-center">
+            <strong id="availableCalories">0</strong>
+            <span id="centerLabel">available</span>
+            <div class="boost-strip" id="boostGrid"></div>
+          </div>
+          <div class="burst" id="burst"></div>
+        </section>
+
+      </section>
+
+      <section class="page page-actions" id="actionsPanel">
+        <div class="action-title">
+          <span>log</span>
+          <b id="boostLabel">1.00x</b>
+        </div>
+        <button class="action-row active-action" id="voiceButton" aria-label="hold side button to log by voice">
+          <span class="side-glyph"></span>
+          <b>voice food</b>
+        </button>
+        <button class="action-row" id="exerciseButton" aria-label="log exercise">
+          <span class="bolt-glyph"></span>
+          <b>exercise</b>
+        </button>
+        <div class="metrics">
+          <div><span>budget</span><b id="budgetLabel">2000</b></div>
+          <div><span>spent</span><b id="spentLabel">0</b></div>
+        </div>
+      </section>
+
+      <section class="page page-log" id="logPanel">
+        <div class="action-title">
+          <span>today</span>
+          <b>log</b>
+        </div>
+        <ol class="log-list" id="logList"></ol>
+      </section>
+
+      <input id="manualInput" class="manual-input" type="text" inputmode="text" autocomplete="off" value="eggs and toast at 8:30am" aria-label="manual fallback transcript">
+      <div class="status" id="statusText">ready</div>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>
