@@ -28,7 +28,7 @@ Open `http://localhost:4173`.
 ## R1 Runtime Hooks
 
 - Scroll wheel: `scrollUp` and `scrollDown` switch between Today, Log, and Settings, clamped at top and bottom. Wheel bursts are debounced so one scroll gesture moves one page.
-- Touch: horizontal swipes also move between pages.
+- Touch: horizontal and vertical swipes also move between pages.
 - Side button: `longPressStart` begins voice capture; `longPressEnd` submits the transcript. The transcript can log food, exercise, or fasts.
 - AI calorie estimates: `PluginMessageHandler.postMessage(... useLLM: true ...)`.
 - Responses: `window.onPluginMessage`.
@@ -50,4 +50,4 @@ Rabbit's public Creations SDK documents text LLM messages, hardware events, stor
 
 - Exercise credits use only part of estimated active calories: 55% light, 65% moderate, 75% vigorous.
 - Fasting creates focus multipliers at 12h, 16h, and 18h rather than adding calories.
-- Exercise and fasting are the only displayed multipliers.
+- Fasting is the only displayed multiplier; exercise stays as a calorie credit in the daily wheel and log.

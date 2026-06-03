@@ -22,7 +22,6 @@ const state = {
   longPressTimer: null,
   transcript: "",
   boosts: {
-    exercise: 1,
     fasting: 1
   }
 };
@@ -141,7 +140,6 @@ function normalizeDay() {
   state.exerciseCredits = 0;
   state.lastFoodAt = null;
   state.entries = [];
-  state.boosts.exercise = 1;
   state.boosts.fasting = 1;
 }
 
@@ -177,18 +175,13 @@ function updateRing() {
 }
 
 function renderBoosts() {
-  const strongest = strongestBoost();
-  const cards = [
-    ["move", `${state.boosts.exercise.toFixed(2)}x`, "var(--cyan)", "move"],
-    ["fast", `${state.boosts.fasting.toFixed(2)}x`, "var(--orange)", "fast"]
-  ];
-
-  els.boostGrid.innerHTML = cards.map(([name, value, accent, key]) => `
-    <article class="boost-chip ${strongest === key ? "hot" : ""}" style="--accent:${accent}">
-      <span>${name}</span>
-      <b>${value}</b>
+  const fastingBoost = Number(state.boosts.fasting) || 1;
+  els.boostGrid.innerHTML = `
+    <article class="boost-chip ${fastingBoost > 1 ? "hot" : ""}">
+      <span>fast</span>
+      <b>${fastingBoost.toFixed(2)}x</b>
     </article>
-  `).join("");
+  `;
 }
 
 function renderLog() {
@@ -275,10 +268,17 @@ function handleTouchEnd(event) {
   const dx = touch.clientX - state.touchStartX;
   const dy = touch.clientY - state.touchStartY;
   const elapsed = Date.now() - state.touchStartAt;
+  const absX = Math.abs(dx);
+  const absY = Math.abs(dy);
 
-  if (elapsed > 700) return;
-  if (Math.abs(dx) < 42 || Math.abs(dx) < Math.abs(dy) * 1.25) return;
-  handleScroll(dx < 0 ? 1 : -1);
+  if (elapsed > 850) return;
+  if (absY >= 42 && absY > absX * 1.15) {
+    handleScroll(dy > 0 ? 1 : -1);
+    return;
+  }
+  if (absX >= 42 && absX > absY * 1.15) {
+    handleScroll(dx < 0 ? 1 : -1);
+  }
 }
 
 function bindLogLongPress() {
@@ -530,7 +530,6 @@ function addFoodEntry(result, source) {
 function addExerciseEntry(result) {
   const credit = Math.round(result.activeCalories * exerciseCreditFactor(result.intensity));
   state.exerciseCredits += credit;
-  state.boosts.exercise = clamp(1 + state.exerciseCredits / 1800, 1, 1.35);
   state.entries.unshift({
     id: entryId(),
     kind: "exercise",
@@ -583,7 +582,6 @@ function rebuildDailyStats() {
   state.consumed = 0;
   state.exerciseCredits = 0;
   state.lastFoodAt = null;
-  state.boosts.exercise = 1;
   state.boosts.fasting = 1;
 
   state.entries.slice().reverse().forEach((entry) => {
@@ -599,25 +597,16 @@ function rebuildDailyStats() {
     }
   });
 
-  state.boosts.exercise = clamp(1 + state.exerciseCredits / 1800, 1, 1.35);
   refreshFastingBoost(false);
 }
 
-function combinedMultiplier() {
-  return state.boosts.exercise * state.boosts.fasting;
-}
-
-function strongestBoost() {
-  return state.boosts.fasting > state.boosts.exercise ? "fast" : "move";
-}
-
 function updateBoostClass(available) {
-  els.app.classList.remove("boost-move", "boost-fast", "overdrawn");
+  els.app.classList.remove("boost-fast", "overdrawn");
   if (available < 0) {
     els.app.classList.add("overdrawn");
     return;
   }
-  els.app.classList.add(`boost-${strongestBoost()}`);
+  if (state.boosts.fasting > 1) els.app.classList.add("boost-fast");
 }
 
 function exerciseCreditFactor(intensity) {
@@ -795,7 +784,6 @@ async function loadState() {
     if (!decoded) return;
     Object.assign(state, decoded);
     state.boosts = {
-      exercise: Number(state.boosts?.exercise) || 1,
       fasting: Number(state.boosts?.fasting) || 1
     };
     state.foodMemory = state.foodMemory || {};

@@ -47,14 +47,9 @@ button {
   border: 2px solid var(--ink);
 }
 
-#app.boost-move {
-  --boost-a: var(--cyan);
-  --boost-b: var(--green);
-}
-
 #app.boost-fast {
-  --boost-a: var(--orange);
-  --boost-b: var(--yellow);
+  --boost-a: var(--red);
+  --boost-b: var(--orange);
 }
 
 #app.overdrawn {
@@ -91,7 +86,7 @@ button {
 }
 
 .page-ring {
-  grid-template-rows: 18px 1fr;
+  grid-template-rows: 18px minmax(0, 1fr) 28px;
   padding: 7px 7px 5px;
 }
 
@@ -121,8 +116,8 @@ button {
 }
 
 .calorie-ring {
-  width: 226px;
-  height: 226px;
+  width: 218px;
+  height: 218px;
   transform: rotate(-90deg);
   filter: drop-shadow(0 4px 0 rgba(23, 23, 23, 0.08));
 }
@@ -160,10 +155,6 @@ button {
   transition: stroke-dashoffset 260ms ease, stroke 180ms ease;
 }
 
-#app.boost-move .ring-available {
-  animation: moveGlow 1.6s ease-in-out infinite;
-}
-
 #app.boost-fast .ring-available {
   stroke-width: 17;
   animation: breath 2.4s ease-in-out infinite;
@@ -186,7 +177,7 @@ button {
   max-width: 178px;
   overflow: hidden;
   color: var(--ink);
-  font-size: 55px;
+  font-size: 52px;
   line-height: 0.88;
   font-weight: 900;
   letter-spacing: 0;
@@ -204,41 +195,44 @@ button {
 
 .boost-strip {
   display: grid;
-  grid-template-columns: repeat(2, 54px);
-  gap: 10px;
-  margin-top: 12px;
+  place-items: center;
+  min-height: 26px;
 }
 
 .boost-chip {
   position: relative;
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-width: 86px;
   height: 24px;
   padding: 0;
   border: 0;
   background: transparent;
+  color: var(--red);
   text-align: center;
 }
 
 .boost-chip::before {
   content: "";
-  display: block;
-  width: 22px;
+  width: 20px;
   height: 3px;
-  margin: 0 auto 4px;
   border-radius: 99px;
-  background: var(--accent);
+  background: var(--red);
 }
 
 .boost-chip span {
   display: block;
-  color: var(--muted);
   font-size: 7px;
-  font-weight: 300;
+  font-weight: 500;
   line-height: 1;
+  text-transform: uppercase;
 }
 
 .boost-chip b {
   display: block;
-  margin-top: 3px;
   font-size: 10px;
   font-weight: 700;
   line-height: 1;
@@ -246,11 +240,11 @@ button {
 }
 
 .boost-chip.hot {
-  animation: chipBlink 2s ease-in-out infinite;
+  animation: fastPulse 1.6s ease-in-out infinite;
 }
 
 .boost-chip.hot span {
-  color: var(--ink);
+  color: var(--red);
 }
 
 .page-log,
@@ -425,6 +419,10 @@ button {
   pointer-events: none;
 }
 
+.page-ring.active ~ .status {
+  opacity: 0;
+}
+
 .burst {
   position: absolute;
   width: 68px;
@@ -458,17 +456,6 @@ button {
   }
 }
 
-@keyframes moveGlow {
-  0%, 100% {
-    opacity: 0.72;
-    stroke-width: 13;
-  }
-  50% {
-    opacity: 1;
-    stroke-width: 16;
-  }
-}
-
 @keyframes softPulse {
   0%, 100% {
     opacity: 0.78;
@@ -496,12 +483,14 @@ button {
   }
 }
 
-@keyframes chipBlink {
+@keyframes fastPulse {
   0%, 100% {
-    transform: translateY(0);
+    opacity: 0.62;
+    transform: scale(0.98);
   }
   50% {
-    transform: translateY(-1px);
+    opacity: 1;
+    transform: scale(1.06);
   }
 }
 
