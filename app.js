@@ -1,5 +1,6 @@
 const DAY_MINUTES = 1440;
 const RING_LENGTH = 616;
+const CALORIES_PER_POUND = 3500;
 const STORAGE_KEY = "r1_kcal_state_v1";
 
 const state = {
@@ -51,6 +52,7 @@ function bindElements() {
     "centerLabel",
     "budgetLabel",
     "boostGrid",
+    "lossEstimate",
     "logList",
     "budgetDown",
     "budgetUp",
@@ -172,6 +174,7 @@ function updateRing() {
   els.availableCalories.textContent = String(available);
   els.centerLabel.textContent = state.pending ? "thinking" : "available";
   els.budgetLabel.textContent = String(state.dailyBudget);
+  els.lossEstimate.textContent = estimatedPoundsLost(available).toFixed(2);
 }
 
 function renderBoosts() {
@@ -273,7 +276,7 @@ function handleTouchEnd(event) {
 
   if (elapsed > 850) return;
   if (absY >= 42 && absY > absX * 1.15) {
-    handleScroll(dy > 0 ? 1 : -1);
+    handleScroll(dy < 0 ? 1 : -1);
     return;
   }
   if (absX >= 42 && absX > absY * 1.15) {
@@ -607,6 +610,11 @@ function updateBoostClass(available) {
     return;
   }
   if (state.boosts.fasting > 1) els.app.classList.add("boost-fast");
+}
+
+function estimatedPoundsLost(availableCalories) {
+  const unusedCalories = Math.max(0, availableCalories);
+  return unusedCalories / CALORIES_PER_POUND;
 }
 
 function exerciseCreditFactor(intensity) {

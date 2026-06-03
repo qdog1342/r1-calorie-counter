@@ -247,6 +247,38 @@ button {
   color: var(--red);
 }
 
+.loss-estimate {
+  position: absolute;
+  right: 8px;
+  bottom: 7px;
+  z-index: 2;
+  display: grid;
+  justify-items: end;
+  min-width: 48px;
+  color: var(--ink);
+  line-height: 1;
+  pointer-events: none;
+}
+
+.loss-estimate b {
+  max-width: 56px;
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.loss-estimate span {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 6px;
+  font-weight: 300;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
 .page-log,
 .page-settings {
   grid-template-rows: 34px 1fr;

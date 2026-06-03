@@ -36,6 +36,7 @@ Open `http://localhost:4173`.
 - Log: food, calories, exercise, duration, fasts over 10 hours, and entry times are shown on the second page.
 - Log delete: long-press an entry to delete it with a pop animation.
 - Settings: daily calories can be adjusted in 50-calorie steps.
+- Today estimate: available unused calories are shown as a rough pounds-lost equivalent using 3,500 calories per pound.
 - Food memory: logged foods are remembered with stable calorie estimates and included in future AI prompts.
 
 ## Current SDK Limitation
