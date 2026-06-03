@@ -28,11 +28,14 @@ Open `http://localhost:4173`.
 ## R1 Runtime Hooks
 
 - Scroll wheel: `scrollUp` and `scrollDown` switch between Today, Log, and Settings, clamped at top and bottom. Wheel bursts are debounced so one scroll gesture moves one page.
+- Touch: horizontal swipes also move between pages.
 - Side button: `longPressStart` begins voice capture; `longPressEnd` submits the transcript. The transcript can log food, exercise, or fasts.
 - AI calorie estimates: `PluginMessageHandler.postMessage(... useLLM: true ...)`.
 - Responses: `window.onPluginMessage`.
 - Persistence: redundant saves to `window.creationStorage.plain`, `localStorage`, and cookie storage when available. The newest valid snapshot is loaded on start.
 - Log: food, calories, exercise, duration, fasts over 10 hours, and entry times are shown on the second page.
+- Log delete: long-press an entry to delete it with a pop animation.
+- Settings: daily calories can be adjusted in 50-calorie steps.
 - Food memory: logged foods are remembered with stable calorie estimates and included in future AI prompts.
 
 ## Current SDK Limitation

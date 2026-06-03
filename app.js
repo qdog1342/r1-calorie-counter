@@ -16,6 +16,10 @@ const state = {
   listening: false,
   scrollLocked: false,
   scrollUnlockTimer: null,
+  touchStartX: 0,
+  touchStartY: 0,
+  touchStartAt: 0,
+  longPressTimer: null,
   transcript: "",
   boosts: {
     exercise: 1,
@@ -47,11 +51,10 @@ function bindElements() {
     "availableCalories",
     "centerLabel",
     "budgetLabel",
-    "spentLabel",
-    "boostLabel",
     "boostGrid",
     "logList",
-    "memoryLabel",
+    "budgetDown",
+    "budgetUp",
     "manualInput",
     "statusText",
     "burst"
@@ -61,6 +64,9 @@ function bindElements() {
 }
 
 function bindInputs() {
+  els.budgetDown.addEventListener("click", () => adjustDailyBudget(-50));
+  els.budgetUp.addEventListener("click", () => adjustDailyBudget(50));
+
   els.manualInput.addEventListener("keydown", (event) => {
     if (event.key === "Enter") {
       event.preventDefault();
@@ -77,6 +83,9 @@ function bindInputs() {
     event.preventDefault();
     handleScroll(event.deltaY > 0 ? 1 : -1);
   }, { passive: false });
+
+  els.app.addEventListener("touchstart", handleTouchStart, { passive: true });
+  els.app.addEventListener("touchend", handleTouchEnd, { passive: true });
 
   window.addEventListener("pagehide", () => {
     saveState();
@@ -165,9 +174,6 @@ function updateRing() {
   els.availableCalories.textContent = String(available);
   els.centerLabel.textContent = state.pending ? "thinking" : "available";
   els.budgetLabel.textContent = String(state.dailyBudget);
-  els.spentLabel.textContent = String(Math.round(state.consumed));
-  els.boostLabel.textContent = `${combinedMultiplier().toFixed(2)}x`;
-  els.memoryLabel.textContent = String(Object.keys(state.foodMemory || {}).length);
 }
 
 function renderBoosts() {
@@ -192,7 +198,7 @@ function renderLog() {
   }
 
   els.logList.innerHTML = state.entries.slice(0, 7).map((entry) => `
-    <li class="log-entry ${entry.kind}">
+    <li class="log-entry ${entry.kind}" data-id="${entry.id}">
       <div>
         <strong>${entry.title}</strong>
         <small>${entrySubtitle(entry)}</small>
@@ -200,6 +206,7 @@ function renderLog() {
       <span>${entryValue(entry)}</span>
     </li>
   `).join("");
+  bindLogLongPress();
 }
 
 function entrySubtitle(entry) {
@@ -254,6 +261,68 @@ function resetScrollUnlockTimer() {
     state.scrollLocked = false;
     state.scrollUnlockTimer = null;
   }, 420);
+}
+
+function handleTouchStart(event) {
+  const touch = event.changedTouches[0];
+  state.touchStartX = touch.clientX;
+  state.touchStartY = touch.clientY;
+  state.touchStartAt = Date.now();
+}
+
+function handleTouchEnd(event) {
+  const touch = event.changedTouches[0];
+  const dx = touch.clientX - state.touchStartX;
+  const dy = touch.clientY - state.touchStartY;
+  const elapsed = Date.now() - state.touchStartAt;
+
+  if (elapsed > 700) return;
+  if (Math.abs(dx) < 42 || Math.abs(dx) < Math.abs(dy) * 1.25) return;
+  handleScroll(dx < 0 ? 1 : -1);
+}
+
+function bindLogLongPress() {
+  document.querySelectorAll(".log-entry").forEach((row) => {
+    const start = () => startEntryLongPress(row);
+    const cancel = () => cancelEntryLongPress();
+    row.addEventListener("pointerdown", start);
+    row.addEventListener("mousedown", start);
+    row.addEventListener("touchstart", start, { passive: true });
+    ["pointerup", "pointerleave", "pointercancel", "mouseup", "mouseleave", "touchend", "touchcancel"].forEach((eventName) => {
+      row.addEventListener(eventName, cancel);
+    });
+  });
+}
+
+function startEntryLongPress(row) {
+  cancelEntryLongPress();
+  state.longPressTimer = setTimeout(() => deleteEntry(row.dataset.id, row), 650);
+}
+
+function cancelEntryLongPress() {
+  if (state.longPressTimer) clearTimeout(state.longPressTimer);
+  state.longPressTimer = null;
+}
+
+function deleteEntry(id, row) {
+  if (!id) return;
+  cancelEntryLongPress();
+  if (!state.entries.some((entry) => entry.id === id)) return;
+  row?.classList.add("pop-delete");
+  setTimeout(() => {
+    state.entries = state.entries.filter((entry) => entry.id !== id);
+    rebuildDailyStats();
+    setStatus("deleted");
+    saveState();
+    renderAll();
+  }, 180);
+}
+
+function adjustDailyBudget(delta) {
+  state.dailyBudget = clamp(state.dailyBudget + delta, 800, 5000);
+  setStatus(`${state.dailyBudget} kcal`);
+  saveState();
+  renderAll();
 }
 
 function startVoiceCapture() {
@@ -443,6 +512,7 @@ function addFoodEntry(result, source) {
   state.consumed += result.calories;
   state.lastFoodAt = result.eatenAt;
   state.entries.unshift({
+    id: entryId(),
     kind: "food",
     title: result.title,
     calories: result.calories,
@@ -462,6 +532,7 @@ function addExerciseEntry(result) {
   state.exerciseCredits += credit;
   state.boosts.exercise = clamp(1 + state.exerciseCredits / 1800, 1, 1.35);
   state.entries.unshift({
+    id: entryId(),
     kind: "exercise",
     title: result.title,
     calories: credit,
@@ -484,6 +555,7 @@ function applyFastingBoost(hours) {
   refreshFastingBoost(false);
   state.fastXp += Math.round(hours * 10);
   state.entries.unshift({
+    id: entryId(),
     kind: "fast",
     title: `${hours.toFixed(1)}h fast`,
     calories: 0,
@@ -505,6 +577,30 @@ function refreshFastingBoost(shouldAnnounce) {
   else if (hours >= 16) state.boosts.fasting = 1.12;
   else state.boosts.fasting = 1.06;
   if (shouldAnnounce && state.boosts.fasting > previous) setStatus(`${hours.toFixed(1)}h fast`);
+}
+
+function rebuildDailyStats() {
+  state.consumed = 0;
+  state.exerciseCredits = 0;
+  state.lastFoodAt = null;
+  state.boosts.exercise = 1;
+  state.boosts.fasting = 1;
+
+  state.entries.slice().reverse().forEach((entry) => {
+    if (entry.kind === "food") {
+      state.consumed += Number(entry.calories) || 0;
+      state.lastFoodAt = entry.at ? new Date(entry.at) : new Date();
+    }
+    if (entry.kind === "exercise") {
+      state.exerciseCredits += Number(entry.calories) || 0;
+    }
+    if (entry.kind === "fast" && entry.hours > 10) {
+      state.lastFoodAt = new Date(Date.now() - Number(entry.hours) * 36e5);
+    }
+  });
+
+  state.boosts.exercise = clamp(1 + state.exerciseCredits / 1800, 1, 1.35);
+  refreshFastingBoost(false);
 }
 
 function combinedMultiplier() {
@@ -630,6 +726,10 @@ function formatEntryTime(value) {
   return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 
+function entryId() {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
 function titleCase(text) {
   return text.replace(/\w\S*/g, (word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase());
 }
@@ -702,8 +802,10 @@ async function loadState() {
     if (state.lastFoodAt) state.lastFoodAt = new Date(state.lastFoodAt);
     state.entries = (state.entries || []).map((entry) => ({
       ...entry,
+      id: entry.id || entryId(),
       at: entry.at ? new Date(entry.at) : new Date()
     }));
+    rebuildDailyStats();
   } catch (error) {
     setStatus("storage reset");
   }

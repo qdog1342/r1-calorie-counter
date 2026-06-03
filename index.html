@@ -46,13 +46,14 @@
           <span>r1 kcal</span>
           <b>settings</b>
         </div>
-        <div class="settings-grid">
-          <div><span>budget</span><b id="budgetLabel">2000</b></div>
-          <div><span>spent</span><b id="spentLabel">0</b></div>
-          <div><span>boost</span><b id="boostLabel">1.00x</b></div>
-          <div><span>memory</span><b id="memoryLabel">0</b></div>
+        <div class="calorie-setting">
+          <span>daily calories</span>
+          <div class="stepper">
+            <button id="budgetDown" aria-label="decrease daily calories">-</button>
+            <b id="budgetLabel">2000</b>
+            <button id="budgetUp" aria-label="increase daily calories">+</button>
+          </div>
         </div>
-        <p class="settings-note">hold side button to log food, exercise, or fast</p>
       </section>
 
       <input id="manualInput" class="manual-input" type="text" inputmode="text" autocomplete="off" placeholder="type food, fast, or exercise" aria-label="manual fallback transcript">

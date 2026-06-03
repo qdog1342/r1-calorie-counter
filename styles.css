@@ -285,81 +285,6 @@ button {
   font-variant-numeric: tabular-nums;
 }
 
-.action-row {
-  display: grid;
-  grid-template-columns: 48px 1fr;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-  border: 2px solid var(--ink);
-  border-radius: 6px;
-  background: var(--panel);
-  color: var(--ink);
-  padding: 0 11px;
-}
-
-.action-row.active,
-.action-row.active-action {
-  background: linear-gradient(90deg, var(--boost-a), var(--boost-b));
-}
-
-.action-row b {
-  min-width: 0;
-  overflow: hidden;
-  font-size: 18px;
-  font-weight: 900;
-  line-height: 1;
-  text-align: left;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.side-glyph {
-  width: 26px;
-  height: 12px;
-  border-radius: 99px;
-  background: var(--ink);
-}
-
-.bolt-glyph {
-  width: 18px;
-  height: 30px;
-  background: var(--yellow);
-  clip-path: polygon(55% 0, 8% 52%, 42% 52%, 26% 100%, 92% 38%, 56% 38%);
-}
-
-.metrics {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 7px;
-}
-
-.metrics div {
-  min-width: 0;
-  height: 42px;
-  padding: 6px 7px;
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  background: var(--panel);
-}
-
-.metrics span {
-  display: block;
-  color: var(--muted);
-  font-size: 9px;
-  font-weight: 300;
-  line-height: 1;
-}
-
-.metrics b {
-  display: block;
-  margin-top: 5px;
-  font-size: 17px;
-  font-weight: 700;
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
-}
-
 .log-list {
   display: grid;
   align-content: start;
@@ -411,49 +336,52 @@ button {
   white-space: nowrap;
 }
 
-.settings-grid {
+.log-entry.pop-delete {
+  animation: popDelete 180ms ease-in forwards;
+}
+
+.calorie-setting {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 7px;
+  gap: 14px;
+  padding-top: 34px;
+  text-align: center;
 }
 
-.settings-grid div {
-  min-width: 0;
-  height: 48px;
-  padding: 7px;
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  background: var(--panel);
-}
-
-.settings-grid span {
+.calorie-setting > span {
   display: block;
   color: var(--muted);
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 300;
   line-height: 1;
 }
 
-.settings-grid b {
-  display: block;
-  margin-top: 7px;
-  overflow: hidden;
-  font-size: 16px;
+.stepper {
+  display: grid;
+  grid-template-columns: 44px 1fr 44px;
+  align-items: center;
+  gap: 10px;
+}
+
+.stepper button {
+  width: 44px;
+  height: 44px;
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+  background: var(--panel);
+  color: var(--ink);
+  font-size: 28px;
   font-weight: 700;
   line-height: 1;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
 }
 
-.settings-note {
-  align-self: end;
-  margin: 0 0 18px;
-  color: var(--muted);
-  font-size: 10px;
-  font-weight: 300;
-  line-height: 1.35;
-  text-align: center;
+.stepper b {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 36px;
+  font-weight: 900;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
 }
 
 .manual-input {
@@ -596,5 +524,20 @@ button {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes popDelete {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  45% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.72);
   }
 }
