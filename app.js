@@ -11,8 +11,11 @@ const state = {
   currentDay: dayKey(new Date()),
   modeIndex: 0,
   entries: [],
+  foodMemory: {},
   pending: null,
   listening: false,
+  scrollLocked: false,
+  scrollUnlockTimer: null,
   transcript: "",
   boosts: {
     exercise: 1,
@@ -26,6 +29,7 @@ const els = {};
 
 document.addEventListener("DOMContentLoaded", async () => {
   bindElements();
+  await waitForStorageBridge();
   await loadState();
   normalizeDay();
   bindInputs();
@@ -82,13 +86,21 @@ function bindInputs() {
 
   window.addEventListener("wheel", (event) => {
     event.preventDefault();
-    setMode(state.modeIndex + (event.deltaY > 0 ? 1 : -1));
+    handleScroll(event.deltaY > 0 ? 1 : -1);
   }, { passive: false });
+
+  window.addEventListener("pagehide", () => {
+    saveState();
+  });
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") saveState();
+  });
 }
 
 function bindHardware() {
-  window.addEventListener("scrollUp", () => setMode(state.modeIndex - 1));
-  window.addEventListener("scrollDown", () => setMode(state.modeIndex + 1));
+  window.addEventListener("scrollUp", () => handleScroll(-1));
+  window.addEventListener("scrollDown", () => handleScroll(1));
   window.addEventListener("sideClick", () => startVoiceCapture());
   window.addEventListener("longPressStart", () => startVoiceCapture());
   window.addEventListener("longPressEnd", () => endVoiceCapture());
@@ -200,6 +212,8 @@ function setMode(index) {
     setStatus(nextIndex === 0 ? "top" : "bottom");
     return;
   }
+  els.app.classList.toggle("nav-down", nextIndex > state.modeIndex);
+  els.app.classList.toggle("nav-up", nextIndex < state.modeIndex);
   state.modeIndex = nextIndex;
   const activeMode = modes[state.modeIndex];
   document.querySelectorAll(".page").forEach((panel) => {
@@ -207,6 +221,25 @@ function setMode(index) {
   });
   if (activeMode === "actions") setStatus("side button logs voice");
   if (activeMode === "log") setStatus("scroll up for wheel");
+}
+
+function handleScroll(direction) {
+  if (state.scrollLocked) {
+    resetScrollUnlockTimer();
+    return;
+  }
+
+  state.scrollLocked = true;
+  setMode(state.modeIndex + direction);
+  resetScrollUnlockTimer();
+}
+
+function resetScrollUnlockTimer() {
+  if (state.scrollUnlockTimer) clearTimeout(state.scrollUnlockTimer);
+  state.scrollUnlockTimer = setTimeout(() => {
+    state.scrollLocked = false;
+    state.scrollUnlockTimer = null;
+  }, 420);
 }
 
 function startVoiceCapture() {
@@ -289,11 +322,14 @@ function stopSpeechRecognition() {
 function requestFoodEstimate(text) {
   state.pending = { type: "food", source: "voice" };
   const mentionedTime = parseMentionedTime(text);
+  const rememberedFoods = summarizeFoodMemory();
   const prompt = [
     "Estimate calories for a calorie counter creation.",
     "Return ONLY valid JSON with this exact shape:",
     "{\"title\":\"short meal name\",\"calories\":number,\"eatenAt\":\"HH:MM or null\",\"confidence\":0.0}",
+    "If the same food appears in remembered foods, prefer that stored calorie estimate for consistency.",
     `User said: ${text}`,
+    `Remembered foods: ${JSON.stringify(rememberedFoods)}`,
     mentionedTime ? `Parsed local eating time hint: ${timeHHMM(mentionedTime)}` : "No parsed time hint."
   ].join("\n");
 
@@ -364,7 +400,10 @@ function parsePluginPayload(data) {
 
 function normalizeFoodResult(result) {
   const title = String(result.title || "Food").slice(0, 28);
-  const calories = clamp(Math.round(Number(result.calories) || 450), 5, 4000);
+  const memory = state.foodMemory?.[foodKey(title)];
+  const calories = memory
+    ? memory.calories
+    : clamp(Math.round(Number(result.calories) || 450), 5, 4000);
   const eatenAt = result.eatenAt && result.eatenAt !== "null"
     ? parseTimeString(result.eatenAt) || new Date()
     : new Date();
@@ -389,6 +428,7 @@ function addFoodEntry(result, source) {
     source,
     at: result.eatenAt
   });
+  rememberFood(result);
   refreshFastingBoost(false);
   setStatus(`${result.title}: -${result.calories}`);
   playBurst();
@@ -552,6 +592,40 @@ function titleCase(text) {
   return text.replace(/\w\S*/g, (word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase());
 }
 
+function foodKey(title) {
+  return String(title)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .slice(0, 48);
+}
+
+function rememberFood(result) {
+  const key = foodKey(result.title);
+  if (!key) return;
+  const previous = state.foodMemory?.[key];
+  const count = previous ? previous.count + 1 : 1;
+  const calories = previous
+    ? Math.round((previous.calories * previous.count + result.calories) / count)
+    : result.calories;
+  state.foodMemory = {
+    ...state.foodMemory,
+    [key]: {
+      title: result.title,
+      calories,
+      count,
+      lastAt: new Date().toISOString()
+    }
+  };
+}
+
+function summarizeFoodMemory() {
+  return Object.values(state.foodMemory || {})
+    .sort((a, b) => String(b.lastAt).localeCompare(String(a.lastAt)))
+    .slice(0, 12)
+    .map(({ title, calories, count }) => ({ title, calories, count }));
+}
+
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
@@ -575,14 +649,14 @@ function playBurst() {
 
 async function loadState() {
   try {
-    const stored = await readStoredState();
-    if (!stored) return;
-    const decoded = JSON.parse(atob(stored));
+    const decoded = await readStoredState();
+    if (!decoded) return;
     Object.assign(state, decoded);
     state.boosts = {
       exercise: Number(state.boosts?.exercise) || 1,
       fasting: Number(state.boosts?.fasting) || 1
     };
+    state.foodMemory = state.foodMemory || {};
     if (state.lastFoodAt) state.lastFoodAt = new Date(state.lastFoodAt);
     state.entries = (state.entries || []).map((entry) => ({
       ...entry,
@@ -595,6 +669,7 @@ async function loadState() {
 
 async function saveState() {
   const snapshot = {
+    savedAt: Date.now(),
     dailyBudget: state.dailyBudget,
     consumed: state.consumed,
     exerciseCredits: state.exerciseCredits,
@@ -602,46 +677,95 @@ async function saveState() {
     lastFoodAt: state.lastFoodAt,
     currentDay: state.currentDay,
     entries: state.entries.slice(0, 12),
+    foodMemory: state.foodMemory,
     boosts: state.boosts
   };
   try {
-    await writeStoredState(btoa(JSON.stringify(snapshot)));
+    await writeStoredState(encodeSnapshot(snapshot));
   } catch (error) {
     setStatus("storage failed");
   }
 }
 
 async function readStoredState() {
+  const encodedStates = [];
+
   if (window.creationStorage?.plain) {
-    return window.creationStorage.plain.getItem(STORAGE_KEY);
+    try {
+      encodedStates.push(await window.creationStorage.plain.getItem(STORAGE_KEY));
+    } catch (error) {
+      // Continue to web storage fallbacks.
+    }
   }
+
   if (typeof window.localStorage !== "undefined") {
     try {
-      return window.localStorage.getItem(STORAGE_KEY);
+      encodedStates.push(window.localStorage.getItem(STORAGE_KEY));
     } catch (error) {
       // Continue to cookie fallback.
     }
   }
+
   try {
     const match = document.cookie.match(new RegExp(`(?:^|; )${STORAGE_KEY}=([^;]*)`));
-    return match ? decodeURIComponent(match[1]) : null;
+    encodedStates.push(match ? decodeURIComponent(match[1]) : null);
   } catch (error) {
-    return null;
+    // No readable cookie.
   }
+
+  const snapshots = encodedStates
+    .filter(Boolean)
+    .map(decodeSnapshot)
+    .filter(Boolean)
+    .sort((a, b) => Number(b.savedAt || 0) - Number(a.savedAt || 0));
+
+  return snapshots[0] || null;
 }
 
 async function writeStoredState(encodedState) {
-  if (window.creationStorage?.plain) {
-    await window.creationStorage.plain.setItem(STORAGE_KEY, encodedState);
-    return;
-  }
+  writeBrowserState(encodedState);
+
   if (typeof window.localStorage !== "undefined") {
     try {
       window.localStorage.setItem(STORAGE_KEY, encodedState);
-      return;
     } catch (error) {
       // Continue to cookie fallback.
     }
   }
-  document.cookie = `${STORAGE_KEY}=${encodeURIComponent(encodedState)}; max-age=31536000; path=/; SameSite=Lax`;
+
+  if (window.creationStorage?.plain) {
+    await window.creationStorage.plain.setItem(STORAGE_KEY, encodedState);
+  }
+}
+
+function writeBrowserState(encodedState) {
+  try {
+    document.cookie = `${STORAGE_KEY}=${encodeURIComponent(encodedState)}; max-age=31536000; path=/; SameSite=Lax`;
+  } catch (error) {
+    // Cookies may be unavailable in some WebViews.
+  }
+}
+
+function encodeSnapshot(snapshot) {
+  return btoa(unescape(encodeURIComponent(JSON.stringify(snapshot))));
+}
+
+function decodeSnapshot(encodedState) {
+  try {
+    return JSON.parse(decodeURIComponent(escape(atob(encodedState))));
+  } catch (error) {
+    try {
+      return JSON.parse(atob(encodedState));
+    } catch (innerError) {
+      return null;
+    }
+  }
+}
+
+async function waitForStorageBridge() {
+  if (window.creationStorage?.plain || typeof window.localStorage !== "undefined") return;
+  const startedAt = Date.now();
+  while (!window.creationStorage?.plain && Date.now() - startedAt < 1200) {
+    await new Promise((resolve) => setTimeout(resolve, 60));
+  }
 }
