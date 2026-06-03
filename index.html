@@ -33,31 +33,26 @@
 
       </section>
 
-      <section class="page page-actions" id="actionsPanel">
-        <div class="action-title">
-          <span>log</span>
-          <b id="boostLabel">1.00x</b>
-        </div>
-        <button class="action-row active-action" id="voiceButton" aria-label="hold side button to log by voice">
-          <span class="side-glyph"></span>
-          <b>voice food</b>
-        </button>
-        <button class="action-row" id="exerciseButton" aria-label="log exercise">
-          <span class="bolt-glyph"></span>
-          <b>exercise</b>
-        </button>
-        <div class="metrics">
-          <div><span>budget</span><b id="budgetLabel">2000</b></div>
-          <div><span>spent</span><b id="spentLabel">0</b></div>
-        </div>
-      </section>
-
       <section class="page page-log" id="logPanel">
         <div class="action-title">
           <span>today</span>
           <b>log</b>
         </div>
         <ol class="log-list" id="logList"></ol>
+      </section>
+
+      <section class="page page-settings" id="settingsPanel">
+        <div class="action-title">
+          <span>r1 kcal</span>
+          <b>settings</b>
+        </div>
+        <div class="settings-grid">
+          <div><span>budget</span><b id="budgetLabel">2000</b></div>
+          <div><span>spent</span><b id="spentLabel">0</b></div>
+          <div><span>boost</span><b id="boostLabel">1.00x</b></div>
+          <div><span>memory</span><b id="memoryLabel">0</b></div>
+        </div>
+        <p class="settings-note">hold side button to log food, exercise, or fast</p>
       </section>
 
       <input id="manualInput" class="manual-input" type="text" inputmode="text" autocomplete="off" placeholder="type food, fast, or exercise" aria-label="manual fallback transcript">

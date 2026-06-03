@@ -23,7 +23,7 @@ const state = {
   }
 };
 
-const modes = ["today", "actions", "log"];
+const modes = ["today", "log", "settings"];
 
 const els = {};
 
@@ -51,8 +51,7 @@ function bindElements() {
     "boostLabel",
     "boostGrid",
     "logList",
-    "voiceButton",
-    "exerciseButton",
+    "memoryLabel",
     "manualInput",
     "statusText",
     "burst"
@@ -62,21 +61,11 @@ function bindElements() {
 }
 
 function bindInputs() {
-  els.voiceButton.addEventListener("click", () => {
-    if (state.listening) endVoiceCapture();
-    else startVoiceCapture();
-  });
-
   els.manualInput.addEventListener("keydown", (event) => {
     if (event.key === "Enter") {
       event.preventDefault();
       submitTranscript(els.manualInput.value);
     }
-  });
-
-  els.exerciseButton.addEventListener("click", () => {
-    setMode(0);
-    requestExerciseEstimate("30 minute walk");
   });
 
   window.addEventListener("keydown", (event) => {
@@ -101,7 +90,10 @@ function bindInputs() {
 function bindHardware() {
   window.addEventListener("scrollUp", () => handleScroll(-1));
   window.addEventListener("scrollDown", () => handleScroll(1));
-  window.addEventListener("sideClick", () => startVoiceCapture());
+  window.addEventListener("sideClick", () => {
+    if (state.listening) endVoiceCapture();
+    else startVoiceCapture();
+  });
   window.addEventListener("longPressStart", () => startVoiceCapture());
   window.addEventListener("longPressEnd", () => endVoiceCapture());
 }
@@ -175,6 +167,7 @@ function updateRing() {
   els.budgetLabel.textContent = String(state.dailyBudget);
   els.spentLabel.textContent = String(Math.round(state.consumed));
   els.boostLabel.textContent = `${combinedMultiplier().toFixed(2)}x`;
+  els.memoryLabel.textContent = String(Object.keys(state.foodMemory || {}).length);
 }
 
 function renderBoosts() {
@@ -198,12 +191,33 @@ function renderLog() {
     return;
   }
 
-  els.logList.innerHTML = state.entries.slice(0, 3).map((entry) => `
-    <li>
-      <strong>${entry.title}</strong>
-      <span>${entry.kind === "fast" ? "focus" : `${entry.kind === "food" ? "-" : "+"}${Math.round(entry.calories)}`}</span>
+  els.logList.innerHTML = state.entries.slice(0, 7).map((entry) => `
+    <li class="log-entry ${entry.kind}">
+      <div>
+        <strong>${entry.title}</strong>
+        <small>${entrySubtitle(entry)}</small>
+      </div>
+      <span>${entryValue(entry)}</span>
     </li>
   `).join("");
+}
+
+function entrySubtitle(entry) {
+  const time = formatEntryTime(entry.at);
+  if (entry.kind === "exercise") {
+    const duration = entry.durationMinutes ? ` · ${entry.durationMinutes}m` : "";
+    return `${time}${duration}`;
+  }
+  if (entry.kind === "fast") {
+    return `${time} · ${Number(entry.hours || 0).toFixed(1)}h`;
+  }
+  return time;
+}
+
+function entryValue(entry) {
+  if (entry.kind === "fast") return "fast";
+  const sign = entry.kind === "food" ? "-" : "+";
+  return `${sign}${Math.round(entry.calories)}`;
 }
 
 function setMode(index) {
@@ -219,8 +233,8 @@ function setMode(index) {
   document.querySelectorAll(".page").forEach((panel) => {
     panel.classList.toggle("active", panel.id === `${activeMode}Panel`);
   });
-  if (activeMode === "actions") setStatus("side button logs voice");
-  if (activeMode === "log") setStatus("scroll up for wheel");
+  if (activeMode === "log") setStatus("today's log");
+  if (activeMode === "settings") setStatus("settings");
 }
 
 function handleScroll(direction) {
@@ -245,14 +259,12 @@ function resetScrollUnlockTimer() {
 function startVoiceCapture() {
   state.listening = true;
   state.transcript = "";
-  els.voiceButton.classList.add("active");
   setStatus("listening...");
   startSpeechRecognition();
 }
 
 function endVoiceCapture() {
   state.listening = false;
-  els.voiceButton.classList.remove("active");
   stopSpeechRecognition();
 
   const spoken = state.transcript.trim();
@@ -339,13 +351,17 @@ function requestFoodEstimate(text) {
 }
 
 function requestExerciseEstimate(text) {
+  const mentionedTime = parseMentionedTime(text);
+  const durationMinutes = parseDurationMinutes(text);
   state.pending = { type: "exercise" };
   const prompt = [
     "Estimate active calories for an exercise entry.",
     "Return ONLY valid JSON with this exact shape:",
-    "{\"title\":\"short exercise name\",\"activeCalories\":number,\"intensity\":\"light|moderate|vigorous\"}",
+    "{\"title\":\"short exercise name\",\"activeCalories\":number,\"intensity\":\"light|moderate|vigorous\",\"durationMinutes\":number,\"doneAt\":\"HH:MM or null\"}",
     "Use conservative estimates.",
-    `User said: ${text}`
+    `User said: ${text}`,
+    durationMinutes ? `Parsed duration hint: ${durationMinutes} minutes` : "No parsed duration hint.",
+    mentionedTime ? `Parsed local time hint: ${timeHHMM(mentionedTime)}` : "No parsed time hint."
   ].join("\n");
 
   sendLLM(prompt, () => {
@@ -411,10 +427,15 @@ function normalizeFoodResult(result) {
 }
 
 function normalizeExerciseResult(result) {
+  const doneAt = result.doneAt && result.doneAt !== "null"
+    ? parseTimeString(result.doneAt) || new Date()
+    : new Date();
   return {
     title: String(result.title || "Move").slice(0, 28),
     activeCalories: clamp(Math.round(Number(result.activeCalories) || 120), 5, 2000),
-    intensity: ["light", "moderate", "vigorous"].includes(result.intensity) ? result.intensity : "moderate"
+    intensity: ["light", "moderate", "vigorous"].includes(result.intensity) ? result.intensity : "moderate",
+    durationMinutes: clamp(Math.round(Number(result.durationMinutes) || 30), 1, 600),
+    doneAt
   };
 }
 
@@ -444,7 +465,8 @@ function addExerciseEntry(result) {
     kind: "exercise",
     title: result.title,
     calories: credit,
-    at: new Date()
+    durationMinutes: result.durationMinutes,
+    at: result.doneAt || new Date()
   });
   setStatus(`${result.title}: +${credit}`);
   playBurst();
@@ -453,9 +475,9 @@ function addExerciseEntry(result) {
 }
 
 function applyFastingBoost(hours) {
-  if (hours < 12) {
+  if (hours <= 10) {
     state.boosts.fasting = 1;
-    setStatus("fast starts at 12h");
+    setStatus("fast logs over 10h");
     return;
   }
   state.lastFoodAt = new Date(Date.now() - hours * 36e5);
@@ -465,6 +487,7 @@ function applyFastingBoost(hours) {
     kind: "fast",
     title: `${hours.toFixed(1)}h fast`,
     calories: 0,
+    hours,
     at: new Date()
   });
   setStatus(`${hours.toFixed(1)}h fast`);
@@ -536,7 +559,7 @@ function mockFoodEstimate(text) {
 
 function mockExerciseEstimate(text) {
   const lower = text.toLowerCase();
-  const minutes = Number(lower.match(/(\d+)\s*(min|minute|minutes)/)?.[1] || 30);
+  const minutes = parseDurationMinutes(text) || 30;
   let title = "walk";
   let activeCalories = minutes * 3.6;
   let intensity = "light";
@@ -553,7 +576,13 @@ function mockExerciseEstimate(text) {
     activeCalories = minutes * 4.6;
     intensity = "moderate";
   }
-  return { title: `${minutes}m ${title}`, activeCalories, intensity };
+  return {
+    title: `${minutes}m ${title}`,
+    activeCalories,
+    intensity,
+    durationMinutes: minutes,
+    doneAt: parseMentionedTime(text) || new Date()
+  };
 }
 
 function parseMentionedTime(text) {
@@ -584,8 +613,21 @@ function parseFastHours(text) {
   return match ? Number(match[1]) : null;
 }
 
+function parseDurationMinutes(text) {
+  const minuteMatch = text.match(/\b(\d+(?:\.\d+)?)\s*(min|mins|minute|minutes)\b/i);
+  if (minuteMatch) return Math.round(Number(minuteMatch[1]));
+  const hourMatch = text.match(/\b(\d+(?:\.\d+)?)\s*(h|hr|hrs|hour|hours)\b/i);
+  if (hourMatch) return Math.round(Number(hourMatch[1]) * 60);
+  return null;
+}
+
 function timeHHMM(date) {
   return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+}
+
+function formatEntryTime(value) {
+  const date = value ? new Date(value) : new Date();
+  return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 
 function titleCase(text) {
