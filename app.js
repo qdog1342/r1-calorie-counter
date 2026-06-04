@@ -21,7 +21,10 @@ const state = {
   touchStartY: 0,
   touchStartAt: 0,
   longPressTimer: null,
+  voiceFinalizeTimer: null,
   transcript: "",
+  recognition: null,
+  recognitionAvailable: false,
   boosts: {
     fasting: 1
   }
@@ -100,17 +103,35 @@ function bindInputs() {
 function bindHardware() {
   window.addEventListener("scrollUp", () => handleScroll(-1));
   window.addEventListener("scrollDown", () => handleScroll(1));
-  window.addEventListener("sideClick", () => {
-    if (state.listening) endVoiceCapture();
-    else startVoiceCapture();
-  });
-  window.addEventListener("longPressStart", () => startVoiceCapture());
-  window.addEventListener("longPressEnd", () => endVoiceCapture());
+  window.addEventListener("sideClick", handleSideClick);
+  [
+    "longPressStart",
+    "pttButtonPressed",
+    "pttDown",
+    "sideButtonDown"
+  ].forEach((eventName) => window.addEventListener(eventName, startVoiceCapture));
+  [
+    "longPressEnd",
+    "pttButtonReleased",
+    "pttUp",
+    "sideButtonUp"
+  ].forEach((eventName) => window.addEventListener(eventName, endVoiceCapture));
+  [
+    "speechResult",
+    "speechTranscript",
+    "voiceTranscript",
+    "dictationResult"
+  ].forEach((eventName) => window.addEventListener(eventName, handleNativeTranscript));
 }
 
 window.onPluginMessage = function onPluginMessage(data) {
   const parsed = parsePluginPayload(data);
   if (!state.pending) {
+    const transcript = extractTranscript(parsed) || extractTranscript(data);
+    if (transcript) {
+      submitTranscript(transcript);
+      return;
+    }
     setStatus("received AI response");
     return;
   }
@@ -172,7 +193,7 @@ function updateRing() {
   els.availableArc.style.strokeDashoffset = String(RING_LENGTH * (1 - availableProgress));
   updateBoostClass(available);
   els.availableCalories.textContent = String(available);
-  els.centerLabel.textContent = state.pending ? "thinking" : "available";
+  refreshCenterLabel();
   els.budgetLabel.textContent = String(state.dailyBudget);
   els.lossEstimate.textContent = estimatedPoundsLost(available).toFixed(2);
 }
@@ -328,20 +349,42 @@ function adjustDailyBudget(delta) {
   renderAll();
 }
 
+function handleSideClick() {
+  els.manualInput.classList.remove("show");
+  setStatus("hold side to talk");
+  els.centerLabel.textContent = "hold side";
+}
+
 function startVoiceCapture() {
+  if (state.listening) return;
+  if (state.voiceFinalizeTimer) clearTimeout(state.voiceFinalizeTimer);
+  state.voiceFinalizeTimer = null;
   state.listening = true;
   state.transcript = "";
+  els.manualInput.classList.remove("show");
   setStatus("listening...");
+  refreshCenterLabel();
   startSpeechRecognition();
 }
 
-function endVoiceCapture() {
+function endVoiceCapture(event) {
+  const nativeTranscript = extractTranscript(event?.detail) || extractTranscript(event);
+  if (nativeTranscript) state.transcript = nativeTranscript;
   state.listening = false;
   stopSpeechRecognition();
 
+  setStatus(state.transcript.trim() ? "logging..." : "processing voice...");
+  if (state.voiceFinalizeTimer) clearTimeout(state.voiceFinalizeTimer);
+  state.voiceFinalizeTimer = setTimeout(finalizeVoiceCapture, 360);
+  refreshCenterLabel();
+}
+
+function finalizeVoiceCapture() {
+  state.voiceFinalizeTimer = null;
   const spoken = state.transcript.trim();
   if (!spoken) {
-    showManualFallback("type food then enter");
+    setStatus(state.recognitionAvailable ? "heard nothing" : "voice unavailable");
+    els.centerLabel.textContent = state.recognitionAvailable ? "heard nothing" : "voice unavailable";
     return;
   }
   submitTranscript(spoken);
@@ -373,23 +416,31 @@ function submitTranscript(text) {
 function startSpeechRecognition() {
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SpeechRecognition) {
-    showManualFallback("speech unavailable");
-    return;
+    state.recognitionAvailable = false;
+    setStatus("listening... release to log");
+    return false;
   }
 
   try {
+    state.recognitionAvailable = true;
     state.recognition = new SpeechRecognition();
-    state.recognition.continuous = false;
+    state.recognition.continuous = true;
     state.recognition.interimResults = true;
     state.recognition.lang = "en-US";
     state.recognition.onresult = (event) => {
       state.transcript = Array.from(event.results).map((result) => result[0].transcript).join(" ");
       setStatus(state.transcript);
     };
-    state.recognition.onerror = () => showManualFallback("type transcript");
+    state.recognition.onerror = () => {
+      state.recognitionAvailable = false;
+      setStatus("voice unavailable");
+    };
     state.recognition.start();
+    return true;
   } catch (error) {
-    showManualFallback("type transcript");
+    state.recognitionAvailable = false;
+    setStatus("voice unavailable");
+    return false;
   }
 }
 
@@ -401,6 +452,17 @@ function stopSpeechRecognition() {
     // SpeechRecognition can throw if it already stopped.
   }
   state.recognition = null;
+}
+
+function handleNativeTranscript(event) {
+  const transcript = extractTranscript(event?.detail) || extractTranscript(event);
+  if (!transcript) return;
+  if (state.listening) {
+    state.transcript = transcript;
+    setStatus(transcript);
+    return;
+  }
+  submitTranscript(transcript);
 }
 
 function requestFoodEstimate(text) {
@@ -484,6 +546,39 @@ function parsePluginPayload(data) {
     }
   }
   return {};
+}
+
+function extractTranscript(payload) {
+  if (!payload) return "";
+  if (typeof payload === "string") return payload.trim();
+  const candidates = [
+    payload.transcript,
+    payload.text,
+    payload.utterance,
+    payload.speech,
+    payload.speechText,
+    payload.voiceText,
+    payload.voiceTranscript,
+    payload.result?.transcript,
+    payload.result?.text,
+    payload.data?.transcript,
+    payload.data?.text,
+    payload.detail?.transcript,
+    payload.detail?.text
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.trim()) return candidate.trim();
+  }
+
+  if (typeof payload.data === "string") {
+    try {
+      return extractTranscript(JSON.parse(payload.data));
+    } catch (error) {
+      return "";
+    }
+  }
+  return "";
 }
 
 function normalizeFoodResult(result) {
@@ -610,6 +705,18 @@ function updateBoostClass(available) {
     return;
   }
   if (state.boosts.fasting > 1) els.app.classList.add("boost-fast");
+}
+
+function refreshCenterLabel() {
+  if (state.listening) {
+    els.centerLabel.textContent = "listening";
+    return;
+  }
+  if (state.voiceFinalizeTimer) {
+    els.centerLabel.textContent = "processing";
+    return;
+  }
+  els.centerLabel.textContent = state.pending ? "thinking" : "available";
 }
 
 function estimatedPoundsLost(availableCalories) {

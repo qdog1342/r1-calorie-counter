@@ -29,7 +29,7 @@ Open `http://localhost:4173`.
 
 - Scroll wheel: `scrollUp` and `scrollDown` switch between Today, Log, and Settings, clamped at top and bottom. Wheel bursts are debounced so one scroll gesture moves one page.
 - Touch: horizontal and vertical swipes also move between pages.
-- Side button: `longPressStart` begins voice capture; `longPressEnd` submits the transcript. The transcript can log food, exercise, or fasts.
+- Side button: hold starts voice logging; release submits the transcript. Short press only reminds you to hold, so it will not open the keyboard.
 - AI calorie estimates: `PluginMessageHandler.postMessage(... useLLM: true ...)`.
 - Responses: `window.onPluginMessage`.
 - Persistence: redundant saves to `window.creationStorage.plain`, `localStorage`, and cookie storage when available. The newest valid snapshot is loaded on start.
